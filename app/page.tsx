@@ -1,6 +1,5 @@
-// /app/page.tsx
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import ExpenseForm from "@/components/ExpenseForm";
 import ExpenseItem from "@/components/ExpenseItem";
 import ExpenseFilters from "@/components/ExpenseFilters";
@@ -17,87 +16,95 @@ export default function Home() {
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(
     null,
   );
-
   const [hasStarted, setHasStarted] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
 
+  const showToast = (msg: string, type: ToastType = "info") =>
+    setToast({ msg, type });
+
+  /**
+   * CORE LOAD FUNCTION
+   * Ensures the system behaves correctly under realistic conditions by syncing
+   * the server state with localStorage after every fetch. [cite: 6, 73]
+   */
+  const load = useCallback(
+    async (retries = 2) => {
+      setIsLoading(true);
+      try {
+        const res = await fetch(
+          `/api/expenses?category=${filter}&sort=${sort}`,
+        );
+        const data = await res.json();
+
+        setExpenses(data);
+        // Sync the backup with the server's truth to handle refreshes correctly [cite: 24, 25]
+        localStorage.setItem("fenmo_backup", JSON.stringify(data));
+      } catch (err) {
+        // Built-in retry mechanism for unreliable networks [cite: 6, 54]
+        if (retries > 0) setTimeout(() => load(retries - 1), 1500);
+        else showToast("Sync Error", "error");
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [filter, sort],
+  );
+
+  /**
+   * INITIAL MOUNT
+   * Handles hydration and session persistence across page reloads. [cite: 53]
+   */
   useEffect(() => {
     const sessionStarted = sessionStorage.getItem("fenmo_started");
     if (sessionStarted) setHasStarted(true);
+
+    const backup = localStorage.getItem("fenmo_backup");
+    if (backup) {
+      const parsed = JSON.parse(backup);
+      if (parsed.length > 0) setExpenses(parsed);
+    }
+
     setIsHydrated(true);
   }, []);
 
-  const handleStart = () => {
-    sessionStorage.setItem("fenmo_started", "true");
-    setHasStarted(true);
-  };
+  useEffect(() => {
+    if (hasStarted) load();
+  }, [load, hasStarted]);
 
-  const showToast = (msg: string, type: ToastType = "info") => {
-    setToast({ msg, type });
-  };
-
-  const load = async (retries = 2) => {
-    setIsLoading(true);
-    try {
-      const res = await fetch(`/api/expenses?category=${filter}&sort=${sort}`);
-      const data = await res.json();
-
-      if (data.length === 0 && filter === "All") {
-        const backup = localStorage.getItem("fenmo_backup");
-        if (backup) {
-          setExpenses(JSON.parse(backup));
-          setIsLoading(false);
-          return;
-        }
-      }
-      setExpenses(data);
-    } catch (err) {
-      if (retries > 0) {
-        showToast("Connection unstable. Retrying...", "info");
-        setTimeout(() => load(retries - 1), 2000);
-      } else {
-        showToast("Sync Error.", "error");
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
+  /**
+   * DELETE HANDLER
+   * Implements robust deletion with immediate server re-sync to prevent
+   * "ghost items" in the UI. [cite: 74, 77]
+   */
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this transaction?")) return;
     try {
       const res = await fetch(`/api/expenses/${id}`, { method: "DELETE" });
       if (res.ok) {
         showToast("Deleted", "info");
-        load();
+        // Re-sync with server truth immediately [cite: 73]
+        await load();
       }
     } catch (err) {
-      showToast("Error", "error");
+      showToast("Network Error", "error");
     }
   };
-
-  useEffect(() => {
-    if (hasStarted) load();
-  }, [filter, sort, hasStarted]);
-
-  useEffect(() => {
-    if (expenses.length > 0) {
-      localStorage.setItem("fenmo_backup", JSON.stringify(expenses));
-    }
-  }, [expenses]);
 
   const totalInCents = expenses.reduce((acc, exp) => acc + exp.amount, 0);
 
   if (!isHydrated) return null;
+  if (!hasStarted)
+    return (
+      <WelcomeScreen
+        onStart={() => {
+          sessionStorage.setItem("fenmo_started", "true");
+          setHasStarted(true);
+        }}
+      />
+    );
 
-  // 1. Show Welcome Screen first
-  if (!hasStarted) {
-    return <WelcomeScreen onStart={handleStart} />;
-  }
-
-  // 2. Show Dashboard after clicking "Enter"
   return (
-    <main className="max-w-3xl mx-auto p-6 md:p-12 min-h-screen bg-gray-50 text-gray-900 animate-in fade-in duration-700">
+    <main className="max-w-3xl mx-auto p-6 md:p-12 min-h-screen bg-gray-50 text-gray-900">
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-3xl font-black text-indigo-600">Fenmo AI</h1>
@@ -105,13 +112,11 @@ export default function Home() {
             onClick={() => setHasStarted(false)}
             className="text-xs text-gray-400 font-bold uppercase hover:text-indigo-600"
           >
-            ← Back to Home
+            ← Home
           </button>
         </div>
         <div className="text-right">
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">
-            Total Visible
-          </p>
+          <p className="text-xs font-bold text-gray-400 uppercase">Total</p>
           <p className="text-3xl font-black text-indigo-600">
             {(totalInCents / 100).toLocaleString("en-IN", {
               style: "currency",
@@ -122,10 +127,12 @@ export default function Home() {
       </div>
 
       <CategorySummary expenses={expenses} />
+
+      {/* Updated ExpenseForm Integration for proper Toast sequencing [cite: 61, 62] */}
       <ExpenseForm
-        onRefresh={() => {
-          showToast("Success!", "success");
-          load();
+        onRefresh={async () => {
+          await load(); // Wait for server and localStorage sync to finish [cite: 73]
+          showToast("Expense added successfully!", "success"); // Visual feedback [cite: 61]
         }}
       />
 
@@ -148,7 +155,6 @@ export default function Home() {
           )}
         </div>
       </div>
-
       {toast && (
         <Toast
           message={toast.msg}

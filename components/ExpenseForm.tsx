@@ -10,13 +10,6 @@ export default function ExpenseForm({ onRefresh }: { onRefresh: () => void }) {
     setLoading(true);
     const fd = new FormData(e.currentTarget);
 
-    const payload = {
-      amount: Math.round(parseFloat(fd.get("amount") as string) * 100), // convert to cents
-      category: fd.get("category"),
-      description: fd.get("description"),
-      date: fd.get("date"),
-    };
-
     const rawAmount = parseFloat(fd.get("amount") as string);
     if (rawAmount <= 0) {
       alert("Amount must be greater than zero.");
@@ -24,14 +17,34 @@ export default function ExpenseForm({ onRefresh }: { onRefresh: () => void }) {
       return;
     }
 
-    await fetch("/api/expenses", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
+    const payload = {
+      amount: Math.round(rawAmount * 100), // convert to cents
+      category: fd.get("category"),
+      description: fd.get("description"),
+      date: fd.get("date"),
+    };
 
-    onRefresh();
-    (e.target as HTMLFormElement).reset();
-    setLoading(false);
+    try {
+      const res = await fetch("/api/expenses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      // --- Integrated Logic for Success/Error Feedback ---
+      if (res.ok) {
+        (e.target as HTMLFormElement).reset();
+        // This triggers the load() and showToast() in page.tsx
+        onRefresh();
+      } else {
+        const errorData = await res.json();
+        alert(errorData.error || "Failed to add expense");
+      }
+    } catch (error) {
+      alert("Network error. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -46,9 +59,12 @@ export default function ExpenseForm({ onRefresh }: { onRefresh: () => void }) {
           step="0.01"
           placeholder="Amount (e.g. 10.50)"
           required
-          className="p-2 border rounded"
+          className="p-2 border rounded focus:ring-2 focus:ring-indigo-500 outline-none"
         />
-        <select name="category" className="p-2 border rounded">
+        <select
+          name="category"
+          className="p-2 border rounded focus:ring-2 focus:ring-indigo-500 outline-none"
+        >
           {CATEGORIES.map((c) => (
             <option key={c} value={c}>
               {c}
@@ -60,18 +76,18 @@ export default function ExpenseForm({ onRefresh }: { onRefresh: () => void }) {
           type="text"
           placeholder="Description"
           required
-          className="p-2 border rounded col-span-2"
+          className="p-2 border rounded col-span-2 focus:ring-2 focus:ring-indigo-500 outline-none"
         />
         <input
           name="date"
           type="date"
           required
-          className="p-2 border rounded col-span-2"
+          className="p-2 border rounded col-span-2 focus:ring-2 focus:ring-indigo-500 outline-none"
         />
       </div>
       <button
         disabled={loading}
-        className="w-full bg-black text-white p-2 rounded hover:opacity-80"
+        className="w-full bg-indigo-600 text-white p-2 rounded-lg font-bold hover:bg-indigo-700 transition-colors disabled:bg-gray-400"
       >
         {loading ? "Saving..." : "Add Expense"}
       </button>

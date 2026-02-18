@@ -1,23 +1,24 @@
 // /lib/store.ts
 import { Expense } from "@/types/expense";
 
-let expenses: Expense[] = [];
+// Using a more robust singleton check for Next.js 15
+const globalStore = global as unknown as { expenses: Expense[] };
+if (!globalStore.expenses) {
+  globalStore.expenses = [];
+}
 
-//Returns the current list of expenses.
-
-export const getExpenses = () => expenses;
+export const getExpenses = () => globalStore.expenses;
 
 export const addExpense = (
   expense: Omit<Expense, "id" | "created_at">,
 ): Expense | null => {
   const now = new Date();
 
-  const isDuplicate = expenses.some(
+  // Idempotency check 
+  const isDuplicate = globalStore.expenses.some(
     (e) =>
       e.amount === expense.amount &&
       e.description === expense.description &&
-      e.category === expense.category &&
-      e.date === expense.date &&
       now.getTime() - new Date(e.created_at).getTime() < 10000,
   );
 
@@ -25,18 +26,16 @@ export const addExpense = (
 
   const newExpense: Expense = {
     ...expense,
-    id: crypto.randomUUID(), // Generates unique ID as required.
-    created_at: now.toISOString(), // Adds metadata for tracking.
+    id: crypto.randomUUID(),
+    created_at: now.toISOString(),
   };
 
-  expenses.push(newExpense);
+  globalStore.expenses.push(newExpense);
   return newExpense;
 };
 
-// Removes an expense by ID.
- 
 export const deleteExpense = (id: string): boolean => {
-  const initialLength = expenses.length;
-  expenses = expenses.filter((e) => e.id !== id);
-  return expenses.length < initialLength;
+  const initialLength = globalStore.expenses.length;
+  globalStore.expenses = globalStore.expenses.filter((e) => e.id !== id);
+  return globalStore.expenses.length < initialLength;
 };

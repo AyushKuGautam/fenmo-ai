@@ -2,6 +2,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { addExpense, getExpenses } from "@/lib/store";
 
+/**
+ * GET Handler: Supports filtering and sorting.
+ */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const category = searchParams.get("category");
@@ -9,10 +12,12 @@ export async function GET(request: NextRequest) {
 
   let expenses = getExpenses();
 
+  // Filter by category if provided and not "All" 
   if (category && category !== "All") {
     expenses = expenses.filter((e) => e.category === category);
   }
 
+  // Sort by date (newest first) if requested 
   if (sort === "date_desc") {
     expenses = [...expenses].sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
@@ -22,15 +27,57 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(expenses);
 }
 
+/**
+ * POST Handler: Includes strict validation and idempotency.
+ * Realistic Conditions: Retries, network lag, and duplicate submissions 
+ */
 export async function POST(request: NextRequest) {
-  const body = await request.json();
-  const newExpense = addExpense(body);
+  // Simulate real-world network latency 
+  await new Promise((resolve) => setTimeout(resolve, 800));
 
-  if (!newExpense) {
+  try {
+    const body = await request.json();
+
+    // Ensures system correctness even if frontend validation is bypassed 
+    if (!body.amount || body.amount <= 0) {
+      return NextResponse.json(
+        { error: "Valid positive amount required" },
+        { status: 400 },
+      );
+    }
+    if (!body.description || body.description.trim().length < 3) {
+      return NextResponse.json(
+        { error: "Description must be at least 3 characters long" },
+        { status: 400 },
+      );
+    }
+    if (!body.category || !body.date) {
+      return NextResponse.json(
+        { error: "Missing required fields (category/date)" },
+        { status: 400 },
+      );
+    }
+
+    //Idempotency Check ---
+    // addExpense handles the 10-second duplicate check logic 
+    const newExpense = addExpense(body);
+
+    if (!newExpense) {
+      return NextResponse.json(
+        {
+          error:
+            "Duplicate submission detected. Please wait a few seconds before retrying.",
+        },
+        { status: 409 }, // Conflict status code for duplicates
+      );
+    }
+
+    return NextResponse.json(newExpense, { status: 201 });
+  } catch (e) {
+    // Gracefully handle malformed JSON requests 
     return NextResponse.json(
-      { error: "Duplicate submission" },
-      { status: 409 },
+      { error: "Malformed request body" },
+      { status: 400 },
     );
   }
-  return NextResponse.json(newExpense, { status: 201 });
 }

@@ -1,7 +1,6 @@
 // /lib/store.ts
 import { Expense } from "@/types/expense";
 
-// Using a more robust singleton check for Next.js 15
 const globalStore = global as unknown as { expenses: Expense[] };
 if (!globalStore.expenses) {
   globalStore.expenses = [];

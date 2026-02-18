@@ -2,9 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { addExpense, getExpenses } from "@/lib/store";
 
-/**
- * GET Handler: Supports filtering and sorting.
- */
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const category = searchParams.get("category");
@@ -27,10 +25,6 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(expenses);
 }
 
-/**
- * POST Handler: Includes strict validation and idempotency.
- * Realistic Conditions: Retries, network lag, and duplicate submissions 
- */
 export async function POST(request: NextRequest) {
   // Simulate real-world network latency 
   await new Promise((resolve) => setTimeout(resolve, 800));
@@ -73,8 +67,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(newExpense, { status: 201 });
-  } catch (e) {
-    // Gracefully handle malformed JSON requests 
+  } catch (e) { 
     return NextResponse.json(
       { error: "Malformed request body" },
       { status: 400 },

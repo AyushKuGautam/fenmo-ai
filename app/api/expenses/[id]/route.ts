@@ -10,7 +10,7 @@ export async function DELETE(
     const resolvedParams = await params;
     const id = resolvedParams.id;
 
-    console.log("SERVER LOG: Attempting to delete ID:", id); // Check your terminal for this!
+    console.log("SERVER LOG: Attempting to delete ID:", id); 
 
     if (!id) {
       return NextResponse.json({ error: "No ID provided" }, { status: 400 });

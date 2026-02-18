@@ -22,11 +22,7 @@ export default function Home() {
   const showToast = (msg: string, type: ToastType = "info") =>
     setToast({ msg, type });
 
-  /**
-   * CORE LOAD FUNCTION
-   * Ensures the system behaves correctly under realistic conditions by syncing
-   * the server state with localStorage after every fetch. [cite: 6, 73]
-   */
+  
   const load = useCallback(
     async (retries = 2) => {
       setIsLoading(true);
@@ -37,10 +33,10 @@ export default function Home() {
         const data = await res.json();
 
         setExpenses(data);
-        // Sync the backup with the server's truth to handle refreshes correctly [cite: 24, 25]
+        
         localStorage.setItem("fenmo_backup", JSON.stringify(data));
       } catch (err) {
-        // Built-in retry mechanism for unreliable networks [cite: 6, 54]
+        
         if (retries > 0) setTimeout(() => load(retries - 1), 1500);
         else showToast("Sync Error", "error");
       } finally {
@@ -50,10 +46,7 @@ export default function Home() {
     [filter, sort],
   );
 
-  /**
-   * INITIAL MOUNT
-   * Handles hydration and session persistence across page reloads. [cite: 53]
-   */
+ 
   useEffect(() => {
     const sessionStarted = sessionStorage.getItem("fenmo_started");
     if (sessionStarted) setHasStarted(true);
@@ -71,18 +64,14 @@ export default function Home() {
     if (hasStarted) load();
   }, [load, hasStarted]);
 
-  /**
-   * DELETE HANDLER
-   * Implements robust deletion with immediate server re-sync to prevent
-   * "ghost items" in the UI. [cite: 74, 77]
-   */
+  
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this transaction?")) return;
     try {
       const res = await fetch(`/api/expenses/${id}`, { method: "DELETE" });
       if (res.ok) {
         showToast("Deleted", "info");
-        // Re-sync with server truth immediately [cite: 73]
+       
         await load();
       }
     } catch (err) {
@@ -128,11 +117,11 @@ export default function Home() {
 
       <CategorySummary expenses={expenses} />
 
-      {/* Updated ExpenseForm Integration for proper Toast sequencing [cite: 61, 62] */}
+      {}
       <ExpenseForm
         onRefresh={async () => {
-          await load(); // Wait for server and localStorage sync to finish [cite: 73]
-          showToast("Expense added successfully!", "success"); // Visual feedback [cite: 61]
+          await load(); 
+          showToast("Expense added successfully!", "success"); 
         }}
       />
 

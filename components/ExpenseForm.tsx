@@ -34,7 +34,7 @@ export default function ExpenseForm({ onRefresh }: { onRefresh: () => void }) {
       // --- Integrated Logic for Success/Error Feedback ---
       if (res.ok) {
         (e.target as HTMLFormElement).reset();
-        // This triggers the load() and showToast() in page.tsx
+        
         onRefresh();
       } else {
         const errorData = await res.json();

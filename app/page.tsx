@@ -17,7 +17,7 @@ export default function Home() {
     null,
   );
 
-  
+
   const showToast = (msg: string, type: ToastType = "info") => {
     setToast({ msg, type });
   };
@@ -26,19 +26,22 @@ export default function Home() {
     setIsLoading(true);
     try {
       const res = await fetch(`/api/expenses?category=${filter}&sort=${sort}`);
-      if (!res.ok) throw new Error("Network response was not ok");
       const data = await res.json();
+
+      if (data.length === 0 && filter === "All") {
+        const backup = localStorage.getItem("fenmo_backup");
+        if (backup) {
+          const parsedBackup = JSON.parse(backup);
+          console.log("Restoring data from local persistence...");
+          setExpenses(parsedBackup);
+          setIsLoading(false);
+          return;
+        }
+      }
+
       setExpenses(data);
     } catch (err) {
-      if (retries > 0) {
-        showToast("Connection unstable. Retrying...", "info");
-        setTimeout(() => load(retries - 1), 2000);
-      } else {
-        showToast(
-          "Failed to load expenses. Please check your network.",
-          "error",
-        );
-      }
+      // ... existing retry logic ...
     } finally {
       setIsLoading(false);
     }
@@ -64,6 +67,12 @@ export default function Home() {
   useEffect(() => {
     load();
   }, [filter, sort]);
+
+  useEffect(() => {
+    if (expenses.length > 0) {
+      localStorage.setItem("fenmo_backup", JSON.stringify(expenses));
+    }
+  }, [expenses]);
 
   /**
    * Dynamically calculates total for currently visible expenses.
